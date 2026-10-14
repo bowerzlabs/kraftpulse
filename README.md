@@ -1,85 +1,110 @@
 # KraftPulse
 
-> **Spring Boot observability built for developers.**
->
-> Understand your application's behavior, investigate performance problems, and find errors faster—all through one developer-friendly experience.
+> **Understand every request. Find every bottleneck.**
 
----
+KraftPulse is a request-level observability tool for Spring Boot applications.
 
-## Vision & Philosophy
+It helps developers trace a request through their application, understand where execution time is spent, identify slow database operations and external calls, and investigate exceptions in context.
 
-KraftPulse is an application observability platform designed specifically for the Spring Boot ecosystem. It focuses on the direct questions developers ask every day:
-- Why is my application slow?
-- Which database operation caused the slowdown?
-- Which endpoint is throwing exceptions?
-- What caused an external service to time out?
+Instead of making developers jump between logs, metrics, and stack traces, KraftPulse brings the events surrounding a request into one clear, searchable timeline.
 
-### Core Principles
-* **Spring Boot First**: Connects telemetry directly to Controllers, Repositories, Security, Transactions, and Scheduled Jobs rather than disconnected JVM metrics.
-* **Minimal Configuration**: Add KraftPulse, start your app, and immediately open the dashboard.
-* **Local First**: Fully functional offline without an account; seamless transition to hosted environments.
-* **Developer Experience First**: Simple, unobtrusive, approachable, and actionable.
+## The Problem
 
----
+When a Spring Boot endpoint becomes slow or starts failing, developers often have to piece together what happened from separate sources.
 
-## Core Observability Areas
+They may know that a request took three seconds, but not whether the time was spent in a repository call, an external API, application logic, or repeated database queries.
 
-* **HTTP Requests**: Incoming URLs, methods, status codes, durations, controllers, user context, and trace correlation.
-* **Database & Data Access**: Repository operations, SQL/JPQL/MongoDB queries, query durations, slow operations, transactions, and N+1 pattern detection.
-* **Outbound Requests**: External HTTP destinations, statuses, durations, timeouts, retries, and failures.
-* **Exceptions**: Grouped stack traces, error messages, trace linkage, and occurrence frequencies.
-* **Cache**: Hits, misses, hit ratios, evictions, lookup durations, and cache-related failures.
-* **Application Lifecycle**: Startup/shutdown durations, active profiles, runtime versions, and readiness states.
-* **Audit Activity**: Privacy-conscious visibility into authentication events, entity mutations, and custom security events.
+They may find an exception without knowing which request triggered it or what happened immediately before it.
 
----
+KraftPulse aims to close that gap.
 
-## Spring Ecosystem Visibility
+## The Core Experience
 
-- **Spring Security**: Authentication outcomes, login failures, access-denied events, and role context.
-- **Transactions**: Duration, completion, and rollback tracking.
-- **Scheduled Jobs**: Execution timings, outcomes, and failure inspection for `@Scheduled` tasks.
-- **Spring Events**: Processing times, listener activity, and event-driven error diagnostics.
+### 1. Follow a Request
 
----
+Inspect an incoming HTTP request and the operations associated with it.
 
-## Developer Dashboard
+Understand its endpoint, response status, execution duration, and the related database operations, external calls, and exceptions that were observed.
 
-* **Overview Screen**: Concise signals covering latency trends, slow queries, error rates, and lifecycle events.
-* **Request Timeline**: Sequential trace breakdown showing time spent in handling, security, controller logic, data access, cache, and external APIs.
-* **Search & Investigation**: Rapid querying by controller, repository, endpoint, exception, trace ID, or dependency.
+### 2. Find the Bottleneck
 
----
+See where request time was spent.
 
-## Deployment & Workflows
+Identify slow queries, repeated database operations, slow external dependencies, and other expensive parts of request execution.
 
-### Experiences
-- **Local Experience**: Zero-account, offline, integrated local dashboard with configurable retention.
-- **Hosted Experience**: Team workspaces, long-term retention, alerts, and collaborative diagnostics.
+The goal is not merely to report that a request was slow, but to help explain why.
 
-### Integrations & Assisted Diagnostics
-- Optional webhooks, email, Slack/Teams alerts, and export capabilities.
-- Contextual, evidence-grounded explanations (e.g., explaining latency spikes post-deployment or PostgreSQL waiting bottlenecks).
+### 3. Investigate Failures
 
----
+Inspect exceptions alongside the requests and operations associated with them.
 
-## Non-Goals
+Move from an error to its surrounding execution context without manually correlating unrelated logs.
 
-KraftPulse is **not**:
-- A Kubernetes or cloud infrastructure monitoring platform.
-- A replacement for Prometheus, Grafana, or general-purpose log aggregation.
-- A SIEM or complete DevOps platform.
+Recognize recurring errors and determine whether they affect particular endpoints or operations.
 
----
+### 4. Understand Application Behavior
 
-## Phased Roadmap
+Provide enough additional context to make request investigations useful, including application lifecycle events, scheduled jobs, cache activity, transaction outcomes, and other Spring-related events as supported.
 
-1. **Initial Release (MVP)**: Inbound HTTP, Database diagnostics, Outbound requests, Exceptions, Cache, Lifecycle, Timeline view, Search, Local offline mode.
-2. **Next**: Scheduled jobs, Spring events, Transaction insights, Audit exploration, Alerts, N+1 detection.
-3. **Later & Future**: Assisted diagnostics, Team webhooks, Deployment context, OpenTelemetry/Ecosystem export, Custom instrumentation SDK.
+These capabilities support the request investigation experience rather than compete with it as separate product directions.
 
----
+## The Dashboard
+
+KraftPulse should revolve around three primary views.
+
+- **Requests:** Find slow, failed, and recent requests. Filter by endpoint, status, duration, and other captured attributes.
+- **Request details:** Inspect an individual request's execution timeline, related database operations, external calls, and exceptions.
+- **Exceptions:** Find recurring failures, inspect stack traces, and navigate to the requests and operations associated with an error.
+
+The interface should prioritize investigation over dashboards filled with disconnected charts.
+
+## Built for Spring Boot
+
+KraftPulse should understand the Spring Boot application model, including HTTP handling, data access, transactions, caching, scheduled tasks, and application lifecycle events.
+
+Developers should not need to build a custom instrumentation setup just to get useful diagnostic information.
+
+Automatic discovery should be the default wherever practical, with explicit controls for sensitive data, collection, and overhead.
+
+## Local First
+
+KraftPulse should provide a useful local experience without requiring an account, an external service, or a hosted observability stack.
+
+Developers should be able to add KraftPulse to a Spring Boot application, start the application, open the dashboard, and investigate real requests.
+
+Hosted capabilities may extend the experience for teams, but local development should remain a complete and useful use case.
+
+## Product Principles
+
+- **Request-centric:** Related operations should be understandable in the context of the request that triggered them.
+- **Actionable:** Help developers find the cause of a problem, not merely observe that one exists.
+- **Spring Boot first:** Prioritize the framework and application patterns developers already use.
+- **Low overhead:** Remain suitable for sustained application use.
+- **Privacy by default:** Redact sensitive information and avoid unnecessary capture of request bodies, credentials, and database parameters.
+- **Minimal setup:** Deliver useful diagnostics without extensive manual instrumentation.
+- **Evidence before explanation:** Any diagnosis should be traceable to the underlying captured events.
+
+## Initial Scope
+
+The first release should concentrate on making the request investigation experience excellent.
+
+- Incoming HTTP request visibility
+- Database and data-access operation timing
+- Outbound HTTP call timing and failures
+- Exceptions linked to request context
+- A searchable request list
+- A detailed request execution timeline
+- Local, offline-capable diagnostics
+- Safe defaults and configurable retention
+
+Other capabilities should be introduced when they strengthen this experience or solve a clearly validated developer need.
+
+## Longer-Term Direction
+
+KraftPulse can grow into a broader Spring Boot diagnostics platform through recurring exception analysis, N+1 detection, cache insights, transaction visibility, scheduled job diagnostics, deployment comparisons, notifications, and assisted investigation.
+
+These are extensions of the core product—not reasons to dilute the initial focus.
 
 ## Mission
 
-> **Help Spring Boot developers understand their applications in minutes, not hours.**# kraftpulse
+> Make it easy to understand what happened inside a Spring Boot request, where time was spent, and why it failed.
