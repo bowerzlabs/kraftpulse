@@ -5,17 +5,13 @@ import java.util.regex.Pattern;
 
 public final class SqlNormalizer {
 
-    private static final Pattern STRING_LITERAL =
-            Pattern.compile("'(?:''|[^'])*'");
+    private static final Pattern STRING_LITERAL = Pattern.compile("'(?:''|[^'])*'");
 
-    private static final Pattern NUMBER_LITERAL =
-            Pattern.compile(
+    private static final Pattern NUMBER_LITERAL = Pattern.compile(
                     "(?<![\\w.])[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)"
-                            + "(?:[eE][-+]?\\d+)?(?![\\w.])"
-            );
+                            + "(?:[eE][-+]?\\d+)?(?![\\w.])");
 
-    private static final Pattern WHITESPACE =
-            Pattern.compile("\\s+");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private SqlNormalizer() {
     }
@@ -25,17 +21,10 @@ public final class SqlNormalizer {
             return "";
         }
 
-        String normalized = STRING_LITERAL
-                .matcher(sql)
-                .replaceAll("?");
+        String normalized = STRING_LITERAL.matcher(sql).replaceAll("?");
 
-        normalized = NUMBER_LITERAL
-                .matcher(normalized)
-                .replaceAll("?");
+        normalized = NUMBER_LITERAL.matcher(normalized).replaceAll("?");
 
-        return WHITESPACE
-                .matcher(normalized)
-                .replaceAll(" ")
-                .trim();
+        return WHITESPACE.matcher(normalized).replaceAll(" ").trim();
     }
 }
