@@ -1,6 +1,6 @@
+
 package com.bowerzlabs.kraftpulse.core.masking;
 
-import com.bowerzlabs.kraftpulse.core.enrichment.EnrichmentPipeline;
 import com.bowerzlabs.kraftpulse.shared.masking.MaskingRule;
 import org.junit.jupiter.api.Test;
 
@@ -25,15 +25,17 @@ class MaskingEngineTest {
                 "password", "secret123",
                 "email", "user@example.com",
                 "api_key", "abc123",
-                "card_number", "145627826629K",
+                "card_number", "4111111111111234",
                 "username", "john"
         );
 
         Map<String, String> result = engine.maskFields(fields);
         LOG.info("result: " + result);
+
         assertEquals(REDACTED, result.get("password"));
-        assertEquals(REDACTED, result.get("email"));
+        assertEquals("u***@***", result.get("email"));
         assertEquals(REDACTED, result.get("api_key"));
+        assertEquals("4111**********34", result.get("card_number"));
         assertEquals("john", result.get("username"));
     }
 
@@ -67,17 +69,26 @@ class MaskingEngineTest {
                 Map.entry("client_secret", "secret"),
                 Map.entry("authorization", "Bearer abc"),
                 Map.entry("cookie", "session=abc"),
-                Map.entry("card_number", "123456789"),
-                Map.entry("cc_num", "123456789"),
+                Map.entry("card_number", "4111111111111234"),
+                Map.entry("cc_num", "4111111111111234"),
                 Map.entry("email", "user@example.com")
         );
 
-
         Map<String, String> result = engine.maskFields(fields);
         LOG.info("result: " + result);
-        fields.keySet().forEach(key ->
-                assertEquals(REDACTED, result.get(key), key)
-        );
+
+        assertEquals(REDACTED, result.get("password"));
+        assertEquals(REDACTED, result.get("passwd"));
+        assertEquals(REDACTED, result.get("pwd"));
+        assertEquals(REDACTED, result.get("token"));
+        assertEquals(REDACTED, result.get("api_key"));
+        assertEquals(REDACTED, result.get("api-key"));
+        assertEquals(REDACTED, result.get("client_secret"));
+        assertEquals(REDACTED, result.get("authorization"));
+        assertEquals(REDACTED, result.get("cookie"));
+        assertEquals("4111**********34", result.get("card_number"));
+        assertEquals("4111**********34", result.get("cc_num"));
+        assertEquals("u***@***", result.get("email"));
     }
 
     @Test
@@ -95,18 +106,20 @@ class MaskingEngineTest {
         Map<String, String> result = engine.maskFields(fields);
         LOG.info("result: " + result);
 
-        fields.keySet().forEach(key ->
-                assertEquals(REDACTED, result.get(key), key)
-        );
+        assertEquals(REDACTED, result.get("PASSWORD"));
+        assertEquals(REDACTED, result.get("Password"));
+        assertEquals(REDACTED, result.get("API_KEY"));
+        assertEquals(REDACTED, result.get("Authorization"));
+        assertEquals("u***@***", result.get("EMAIL"));
     }
 
     // --- Allowlist behavior ---
 
     @Test
-    void allowlistedSensitiveFieldIsNotMasked() {
+    void allowlistedSensitiveFieldIsStillMasked() {
         MaskingEngine engine = new MaskingEngine(
                 true,
-                Set.of("email")
+                Set.of("email", "password")
         );
 
         Map<String, String> fields = Map.of(
@@ -116,7 +129,8 @@ class MaskingEngineTest {
 
         Map<String, String> result = engine.maskFields(fields);
         LOG.info("result: " + result);
-        assertEquals("user@example.com", result.get("email"));
+
+        assertEquals("u***@***", result.get("email"));
         assertEquals(REDACTED, result.get("password"));
     }
 
@@ -124,36 +138,36 @@ class MaskingEngineTest {
     void allowlistUsesExactCaseSensitiveFieldNames() {
         MaskingEngine engine = new MaskingEngine(
                 true,
-                Set.of("email")
+                Set.of("username")
         );
 
         Map<String, String> fields = Map.of(
-                "email", "allowed@example.com",
-                "EMAIL", "masked@example.com"
+                "username", "john",
+                "Username", "jane"
         );
 
         Map<String, String> result = engine.maskFields(fields);
         LOG.info("result: " + result);
-        assertEquals("allowed@example.com", result.get("email"));
-        assertEquals(REDACTED, result.get("EMAIL"));
+
+        assertEquals("john", result.get("username"));
+        assertEquals("jane", result.get("Username"));
     }
 
     @Test
     void allowlistIsDefensivelyCopied() {
         Set<String> allowlist = new HashSet<>();
-        allowlist.add("email");
+        allowlist.add("username");
 
         MaskingEngine engine = new MaskingEngine(true, allowlist);
-
         allowlist.clear();
 
         Map<String, String> result = engine.maskFields(
-                Map.of("email", "user@example.com")
+                Map.of("username", "john")
         );
 
         LOG.info("result: " + result);
 
-        assertEquals("user@example.com", result.get("email"));
+        assertEquals("john", result.get("username"));
     }
 
     // --- Disabled masking ---
@@ -169,36 +183,35 @@ class MaskingEngineTest {
 
         Map<String, String> result = engine.maskFields(fields);
         LOG.info("result: " + result);
+
         assertSame(fields, result);
         assertEquals("secret", result.get("password"));
         assertEquals("user@example.com", result.get("email"));
     }
 
-
     @Test
-    void nullFieldValueCurrentlyThrowsExceptionWhenMaskingEnabled() {
+    void nullFieldValueIsPreservedWhenMaskingEnabled() {
         MaskingEngine engine = new MaskingEngine(true, Set.of());
 
         Map<String, String> fields = new HashMap<>();
         fields.put("username", null);
-//        LOG.info("result: " + engine.maskFields(fields));
-        assertThrows(
-                NullPointerException.class,
-                () -> engine.maskFields(fields)
-        );
+
+        Map<String, String> result = engine.maskFields(fields);
+
+        assertTrue(result.containsKey("username"));
+        assertNull(result.get("username"));
     }
 
     @Test
-    void nullFieldNameCurrentlyThrowsExceptionWhenMaskingEnabled() {
+    void nullFieldNameIsHandledWhenMaskingEnabled() {
         MaskingEngine engine = new MaskingEngine(true, Set.of());
 
         Map<String, String> fields = new HashMap<>();
         fields.put(null, "value");
 
-        assertThrows(
-                NullPointerException.class,
-                () -> engine.maskFields(fields)
-        );
+        Map<String, String> result = engine.maskFields(fields);
+
+        assertEquals("value", result.get(null));
     }
 
     // --- Input and output immutability ---
@@ -264,6 +277,4 @@ class MaskingEngineTest {
             assertFalse(rule.matches("username"), rule.name());
         }
     }
-
-
 }
