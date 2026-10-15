@@ -1,6 +1,6 @@
-
 package com.bowerzlabs.kraftpulse.core.masking;
 
+import com.bowerzlabs.kraftpulse.shared.config.MaskingSettings;
 import com.bowerzlabs.kraftpulse.shared.masking.MaskingRule;
 import org.junit.jupiter.api.Test;
 
@@ -15,11 +15,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class MaskingEngineTest {
 
     private static final String REDACTED = MaskingRule.REDACTED;
-    private static final Logger LOG = Logger.getLogger(MaskingEngineTest.class.getName());
+    private static final Logger LOG =
+            Logger.getLogger(MaskingEngineTest.class.getName());
+
+    private MaskingEngine engine(boolean enabled, Set<String> allowlist) {
+        return new MaskingEngine(new MaskingSettings(enabled, allowlist));
+    }
 
     @Test
     void masksSensitiveFields() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = Map.of(
                 "password", "secret123",
@@ -41,7 +46,7 @@ class MaskingEngineTest {
 
     @Test
     void preservesNonSensitiveFields() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = Map.of(
                 "username", "john",
@@ -57,7 +62,7 @@ class MaskingEngineTest {
 
     @Test
     void masksEveryDefinedRule() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = Map.ofEntries(
                 Map.entry("password", "secret"),
@@ -93,7 +98,7 @@ class MaskingEngineTest {
 
     @Test
     void maskingRulesAreCaseInsensitive() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = Map.of(
                 "PASSWORD", "secret",
@@ -113,14 +118,9 @@ class MaskingEngineTest {
         assertEquals("u***@***", result.get("EMAIL"));
     }
 
-    // --- Allowlist behavior ---
-
     @Test
     void allowlistedSensitiveFieldIsStillMasked() {
-        MaskingEngine engine = new MaskingEngine(
-                true,
-                Set.of("email", "password")
-        );
+        MaskingEngine engine = engine(true, Set.of("email", "password"));
 
         Map<String, String> fields = Map.of(
                 "email", "user@example.com",
@@ -136,10 +136,7 @@ class MaskingEngineTest {
 
     @Test
     void allowlistUsesExactCaseSensitiveFieldNames() {
-        MaskingEngine engine = new MaskingEngine(
-                true,
-                Set.of("username")
-        );
+        MaskingEngine engine = engine(true, Set.of("username"));
 
         Map<String, String> fields = Map.of(
                 "username", "john",
@@ -158,7 +155,9 @@ class MaskingEngineTest {
         Set<String> allowlist = new HashSet<>();
         allowlist.add("username");
 
-        MaskingEngine engine = new MaskingEngine(true, allowlist);
+        MaskingSettings settings = new MaskingSettings(true, allowlist);
+        MaskingEngine engine = new MaskingEngine(settings);
+
         allowlist.clear();
 
         Map<String, String> result = engine.maskFields(
@@ -170,11 +169,9 @@ class MaskingEngineTest {
         assertEquals("john", result.get("username"));
     }
 
-    // --- Disabled masking ---
-
     @Test
     void disabledMaskingReturnsOriginalFieldsUnchanged() {
-        MaskingEngine engine = new MaskingEngine(false, Set.of());
+        MaskingEngine engine = engine(false, Set.of());
 
         Map<String, String> fields = Map.of(
                 "password", "secret",
@@ -191,7 +188,7 @@ class MaskingEngineTest {
 
     @Test
     void nullFieldValueIsPreservedWhenMaskingEnabled() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = new HashMap<>();
         fields.put("username", null);
@@ -204,7 +201,7 @@ class MaskingEngineTest {
 
     @Test
     void nullFieldNameIsHandledWhenMaskingEnabled() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = new HashMap<>();
         fields.put(null, "value");
@@ -214,11 +211,9 @@ class MaskingEngineTest {
         assertEquals("value", result.get(null));
     }
 
-    // --- Input and output immutability ---
-
     @Test
     void maskingDoesNotModifyInputMap() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = new HashMap<>();
         fields.put("password", "secret");
@@ -234,7 +229,7 @@ class MaskingEngineTest {
 
     @Test
     void maskedResultIsUnmodifiable() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> result = engine.maskFields(
                 Map.of("password", "secret", "username", "john")
@@ -248,7 +243,7 @@ class MaskingEngineTest {
 
     @Test
     void maskingDoesNotChangeNumberOfFields() {
-        MaskingEngine engine = new MaskingEngine(true, Set.of());
+        MaskingEngine engine = engine(true, Set.of());
 
         Map<String, String> fields = Map.of(
                 "password", "secret",
@@ -261,8 +256,6 @@ class MaskingEngineTest {
         assertEquals(fields.size(), result.size());
         assertEquals(fields.keySet(), result.keySet());
     }
-
-    // --- MaskingRule behavior ---
 
     @Test
     void maskingRuleDoesNotMatchNullFieldName() {
@@ -277,4 +270,5 @@ class MaskingEngineTest {
             assertFalse(rule.matches("username"), rule.name());
         }
     }
+
 }
