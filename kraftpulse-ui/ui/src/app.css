@@ -1,0 +1,362 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand */
+  --color-brand-primary: var(--brand-primary);
+
+  /* Backgrounds */
+  --color-bg-main: var(--bg-main);
+  --color-bg-surface: var(--bg-surface);
+
+  /* Typography */
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+
+  /* Borders */
+  --color-border-subtle: var(--border-subtle);
+
+  /* Status */
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-warning: var(--warning)
+
+  /* Optional Extras */
+  --color-overlay: var(--overlay);
+  --color-shadow: var(--shadow);
+}
+
+:root {
+  /* Brand */
+  --brand-primary: #3b82f6;
+
+  /* Backgrounds */
+  --bg-main: #f8fafc;
+  --bg-surface: #ffffff;
+
+  /* Typography */
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+
+  /* Borders */
+  --border-subtle: #e2e8f0;
+
+  /* Status */
+  --success: #22c55e;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --warning: #f59e0b;
+
+  /* Misc */
+  --overlay: rgba(15, 23, 42, 0.45);
+  --shadow: rgba(15, 23, 42, 0.08);
+}
+
+.dark {
+  /* Brand */
+  --brand-primary: #60a5fa;
+
+  /* Backgrounds */
+  --bg-main: #020617;
+  --bg-surface: #0f172a;
+
+  /* Typography */
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+
+  /* Borders */
+  --border-subtle: #1e293b;
+
+  /* Status */
+  --success: #22c55e;
+  --danger: #ef4444;
+  --info: #60a5fa;
+  --warning: #f59e0b;
+
+  /* Misc */
+  --overlay: rgba(2, 6, 23, 0.7);
+  --shadow: rgba(0, 0, 0, 0.45);
+}
+
+@layer components {
+
+  .page {
+    @apply bg-bg-main text-text-main;
+  }
+
+  .card {
+    @apply bg-bg-surface border border-border-subtle rounded-xl shadow-sm;
+  }
+
+  .section {
+    @apply rounded-xl border border-border-subtle bg-bg-surface;
+  }
+
+  .btn-primary {
+    @apply bg-brand-primary text-white rounded-lg px-4 py-2 font-medium transition hover:opacity-90 disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply bg-bg-surface border border-border-subtle text-text-main rounded-lg px-4 py-2 transition hover:bg-bg-main;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white rounded-lg px-4 py-2 transition hover:opacity-90;
+  }
+
+  .btn-success {
+    @apply bg-success text-white rounded-lg px-4 py-2 transition hover:opacity-90;
+  }
+
+  .btn-warning {
+    @apply bg-warning text-white rounded-lg px-4 py-2 transition hover:opacity-90;
+  }
+
+  .input-base {
+    @apply w-full rounded-lg border border-border-subtle bg-bg-surface text-text-main px-3 py-2 outline-none transition;
+  }
+
+  .input-base:focus {
+    @apply border-brand-primary ring-2 ring-brand-primary/20;
+  }
+
+  .input-error {
+    @apply border-danger ring-2 ring-danger/20;
+  }
+
+  .field-label {
+    @apply mb-2 block text-xs font-semibold uppercase tracking-wide text-text-muted;
+  }
+
+  .req-star {
+    @apply ml-1 text-danger;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-3 py-1 text-xs text-brand-primary;
+  }
+
+  .lookup-dropdown {
+    @apply mt-2 rounded-lg border border-border-subtle bg-bg-surface shadow-lg;
+  }
+
+  .lookup-item {
+    @apply w-full px-3 py-2 text-left text-text-main hover:bg-bg-main transition;
+  }
+
+  .form-container {
+    @apply rounded-xl border border-border-subtle bg-bg-surface p-6;
+  }
+
+  .form-footer {
+    @apply mt-8 flex justify-end gap-3 border-t border-border-subtle pt-6;
+  }
+
+  /* ============================================================
+     Quill / WYSIWYG
+     ============================================================ */
+
+  .wysiwyg-editor-wrapper {
+    @apply overflow-hidden rounded-xl border border-border-subtle bg-bg-surface;
+  }
+
+  .wysiwyg-editor-wrapper .ql-toolbar.ql-snow {
+    @apply border-0 border-b border-border-subtle bg-bg-main;
+    padding: 0.75rem;
+  }
+
+  .wysiwyg-editor-wrapper .ql-container.ql-snow {
+    @apply border-0 bg-bg-surface text-text-main;
+    font-family: inherit;
+    font-size: 0.875rem;
+    min-height: 220px;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor {
+    @apply text-text-main;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor.ql-blank::before {
+    color: var(--text-muted);
+    font-style: normal;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor a {
+    @apply text-brand-primary underline;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor blockquote {
+    @apply border-l-4 border-brand-primary pl-4 italic;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor pre {
+    @apply rounded-lg bg-bg-main p-4;
+  }
+
+  .wysiwyg-editor-wrapper .ql-editor code {
+    @apply rounded bg-bg-main px-1 py-0.5;
+  }
+
+  /* Toolbar icons */
+
+  .wysiwyg-editor-wrapper .ql-snow .ql-stroke {
+    stroke: var(--text-main);
+  }
+
+  .wysiwyg-editor-wrapper .ql-snow .ql-fill {
+    fill: var(--text-main);
+  }
+
+  .wysiwyg-editor-wrapper .ql-snow .ql-picker {
+    color: var(--text-main);
+  }
+
+  .wysiwyg-editor-wrapper .ql-snow .ql-picker-options {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .wysiwyg-editor-wrapper .ql-snow button:hover,
+  .wysiwyg-editor-wrapper .ql-snow button.ql-active,
+  .wysiwyg-editor-wrapper .ql-snow .ql-picker-label:hover,
+  .wysiwyg-editor-wrapper .ql-snow .ql-picker-label.ql-active {
+    color: var(--brand-primary);
+  }
+
+  .wysiwyg-editor-wrapper .ql-snow button:hover .ql-stroke,
+  .wysiwyg-editor-wrapper .ql-snow button.ql-active .ql-stroke {
+    stroke: var(--brand-primary);
+  }
+
+  .wysiwyg-editor-wrapper .ql-snow button:hover .ql-fill,
+  .wysiwyg-editor-wrapper .ql-snow button.ql-active .ql-fill {
+    fill: var(--brand-primary);
+  }
+
+  .wysiwyg-editor-wrapper .ql-tooltip {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-main);
+    box-shadow: 0 10px 30px var(--shadow);
+  }
+
+  /* ============================================================
+     SmartValueRenderer — chips
+     ============================================================ */
+
+  .chip-neutral {
+    background: var(--bg-main);
+    color: var(--text-muted);
+  }
+
+  .chip-success {
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+    border-color: var(--success);
+    color: var(--success);
+  }
+
+  .chip-relation {
+    background: color-mix(in srgb, var(--info) 10%, transparent);
+    border-color: var(--info);
+    color: var(--info);
+  }
+
+  .chip-key {
+    background: var(--bg-main);
+    border-color: var(--border-subtle);
+    color: var(--brand-primary);
+    font-weight: 500;
+  }
+
+  /* ============================================================
+     SmartValueRenderer — object card list
+     ============================================================ */
+
+  .obj-card-list {
+    @apply flex flex-col gap-3;
+  }
+
+  /*
+   * NOTE: cannot @apply the `card` component class here — Tailwind v4 only
+   * allows @apply to reference real utilities (built-in or @utility-defined),
+   * not other @layer components classes. So .card's declarations are
+   * inlined directly below instead of applied by reference.
+   */
+   .obj-card {
+    /* Mobile-first: stack content vertically */
+    @apply flex flex-col items-center text-center p-4 rounded-xl border transition;
+    background: var(--bg-surface);
+    border-color: var(--border-subtle);
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  @media (min-width: 768px) {
+    .obj-card {
+      /* Desktop: switch to horizontal row */
+      @apply flex-row items-start text-left;
+    }
+  }
+
+  .obj-card-body {
+    @apply flex-1 min-w-0 w-full mt-3 md:mt-0 md:ml-4;
+  }
+
+  .obj-card-metric {
+    @apply mt-2 md:mt-0 md:ml-4 shrink-0 font-bold text-base whitespace-nowrap;
+    color: var(--brand-primary);
+  }
+
+ 
+  .obj-card:hover {
+    box-shadow: 0 4px 12px var(--shadow);
+    border-color: var(--brand-primary);
+  }
+
+  .obj-card-media {
+    @apply shrink-0;
+  }
+
+  .obj-card-media img {
+    @apply h-16 w-16 rounded-2xl object-cover border;
+    border-color: var(--border-subtle);
+  }
+
+  .obj-card-avatar {
+    @apply h-16 w-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl;
+  }
+
+  .obj-card-title {
+    @apply font-bold text-sm;
+    color: var(--text-main);
+  }
+
+  .obj-card-subtitle {
+    @apply mt-0.5 text-sm leading-snug;
+    color: var(--text-muted);
+  }
+
+  .obj-card-meta {
+    @apply mt-2.5 flex flex-wrap gap-1.5;
+  }
+
+  .meta-chip {
+    @apply text-xs rounded-full px-2.5 py-0.5;
+    background: var(--bg-main);
+    color: var(--text-muted);
+  }
+
+  .meta-key {
+    @apply font-semibold mr-1;
+    color: var(--text-main);
+  }
+
+  .obj-card-nested {
+    @apply mt-3 flex flex-col gap-2 border-t border-dashed pt-2.5;
+    border-color: var(--border-subtle);
+  }
+
+  .obj-card-nested-row {
+    @apply flex flex-col gap-1;
+  }
+
+}
