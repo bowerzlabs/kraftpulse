@@ -1,4 +1,4 @@
-package com.bowerzlabs.kraftpulse.springboot.web;
+package com.bowerzlabs.kraftpulse.springboot.request;
 
 import com.bowerzlabs.kraftpulse.core.capture.KraftPulseCaptureService;
 import jakarta.servlet.FilterChain;
