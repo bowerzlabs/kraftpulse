@@ -9,6 +9,7 @@ import java.util.Map;
  * @param id                 Deterministic SHA-256 fingerprint generated from exception details for auto-grouping and deduplication.
  * @param traceId            Global W3C trace ID correlating this exception across distributed service boundaries.
  * @param spanId             Active execution span ID pinpointing the specific operation where the error occurred.
+ * @param applicationName    Name of the application instance capturing the event.
  * @param exceptionType      Fully qualified class name of the thrown exception (e.g., "java.lang.NullPointerException").
  * @param simpleName         Short class name of the exception used for UI card headers and quick scanning (e.g., "NullPointerException").
  * @param message            Detail message string provided by the top-level exception instance.
@@ -33,6 +34,7 @@ public record ApplicationExceptionEvent(
         String id,
         String traceId,
         String spanId,
+        String applicationName,
         String exceptionType,
         String simpleName,
         String message,
@@ -52,9 +54,21 @@ public record ApplicationExceptionEvent(
         Instant firstSeen,
         Instant lastSeen,
         long occurrenceCount
-) {
+) implements KraftPulseEvent {
+
     public ApplicationExceptionEvent {
         headers = headers == null ? Map.of() : Map.copyOf(headers);
+    }
+
+    @Override
+    public EventMetadata metadata() {
+        return new EventMetadata(
+                id,
+                lastSeen,
+                applicationName,
+                traceId,
+                spanId
+        );
     }
 
     /**
@@ -64,6 +78,7 @@ public record ApplicationExceptionEvent(
             String id,
             String traceId,
             String spanId,
+            String applicationName,
             String exceptionType,
             String simpleName,
             String message,
@@ -82,7 +97,7 @@ public record ApplicationExceptionEvent(
     ) {
         Instant now = Instant.now();
         return new ApplicationExceptionEvent(
-                id, traceId, spanId, exceptionType, simpleName, message,
+                id, traceId, spanId, applicationName, exceptionType, simpleName, message,
                 rootCauseType, rootCauseMessage, originClass, originMethod, lineNumber,
                 stacktrace, httpMethod, requestUri, queryString, handlerName, clientIp,
                 headers, null, now, now, 1L
