@@ -1,24 +1,29 @@
 package com.bowerzlabs.kraftpulse.springboot.request;
 
 import com.bowerzlabs.kraftpulse.core.capture.KraftPulseCaptureService;
+import com.bowerzlabs.kraftpulse.shared.model.ApplicationInboundHttpRequestEvent;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public class HttpRequestCaptureFilter extends HttpFilter {
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final KraftPulseCaptureService captureService;
+    private final InboundHttpRequestEventBuilder eventBuilder;
     private final String dashboardPath;
 
-    public HttpRequestCaptureFilter(KraftPulseCaptureService captureService, String dashboardPath) {
+    public HttpRequestCaptureFilter(
+            KraftPulseCaptureService captureService,
+            InboundHttpRequestEventBuilder eventBuilder,
+            String dashboardPath
+    ) {
         this.captureService = captureService;
+        this.eventBuilder = eventBuilder;
         this.dashboardPath = dashboardPath != null ? dashboardPath : "/kraft/pulse";
     }
 
@@ -26,29 +31,32 @@ public class HttpRequestCaptureFilter extends HttpFilter {
     protected void doFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
 
-        String requestURI = request.getRequestURI();
-
-        // 1. Skip telemetry capture for KraftPulse UI/API requests to avoid self-referential loops
-        if (requestURI.startsWith(dashboardPath)) {
+        if (request.getRequestURI().startsWith(dashboardPath)) {
             chain.doFilter(request, response);
             return;
         }
 
-        long startTime = System.currentTimeMillis();
+        Instant startedAt = Instant.now();
+        long startNanos = System.nanoTime();
+        Throwable unhandledException = null;
 
         try {
-            // 2. Pass request to consumer app
             chain.doFilter(request, response);
+        } catch (Throwable t) {
+            unhandledException = t;
+            throw t;
         } finally {
-            long durationMs = System.currentTimeMillis() - startTime;
-            int status = response.getStatus();
+            long durationNanos = System.nanoTime() - startNanos;
 
-            logger.info("Captured HTTP request: {} {} -> {} ({}ms)", request.getMethod(), requestURI, status, durationMs);
-
-            // 3. Dispatch event capture to background service
             if (captureService != null) {
-                logger.info("Capturing inbound HTTP request");
-                // captureService.captureInboundRequest(request, response, durationMs);
+                ApplicationInboundHttpRequestEvent event = eventBuilder.build(
+                        request,
+                        response,
+                        startedAt,
+                        durationNanos,
+                        unhandledException
+                );
+                captureService.captureInboundRequest(event);
             }
         }
     }
