@@ -15,7 +15,7 @@ public class HttpRequestCaptureFilter extends HttpFilter {
 
     private final KraftPulseCaptureService captureService;
     private final InboundHttpRequestEventBuilder eventBuilder;
-    private final String dashboardPath;
+    private final String cleanDashboardPath;
 
     public HttpRequestCaptureFilter(
             KraftPulseCaptureService captureService,
@@ -24,14 +24,24 @@ public class HttpRequestCaptureFilter extends HttpFilter {
     ) {
         this.captureService = captureService;
         this.eventBuilder = eventBuilder;
-        this.dashboardPath = dashboardPath != null ? dashboardPath : "/kraft/pulse";
+
+        String path = dashboardPath != null ? dashboardPath : "/kraft/pulse";
+        if (path.endsWith("/**")) {
+            path = path.substring(0, path.length() - 3);
+        } else if (path.endsWith("/*")) {
+            path = path.substring(0, path.length() - 2);
+        }
+        this.cleanDashboardPath = path;
     }
 
     @Override
     protected void doFilter(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
 
-        if (request.getRequestURI().startsWith(dashboardPath)) {
+        String requestURI = request.getRequestURI();
+
+        // Bypass capture for dashboard UI, static assets, and all internal API endpoints
+        if (requestURI.startsWith(cleanDashboardPath) || requestURI.contains("/kraft/pulse/api") || requestURI.contains("/kraftpulse/api")) {
             chain.doFilter(request, response);
             return;
         }
