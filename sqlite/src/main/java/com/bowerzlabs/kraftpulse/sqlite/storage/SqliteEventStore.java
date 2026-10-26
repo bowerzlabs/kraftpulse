@@ -257,9 +257,12 @@ public class SqliteEventStore implements KraftPulseEventStore, AutoCloseable {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
+                    Instant timestamp = parseInstant(rs, "timestamp");
+                    Instant startedAt = parseInstant(rs, "started_at");
+
                     EventMetadata metadata = new EventMetadata(
                             rs.getString("event_id"),
-                            rs.getTimestamp("timestamp").toInstant(),
+                            timestamp,
                             rs.getString("application_name"),
                             rs.getString("trace_id"),
                             rs.getString("span_id")
@@ -268,8 +271,6 @@ public class SqliteEventStore implements KraftPulseEventStore, AutoCloseable {
                     String methodStr = rs.getString("method");
                     HttpMethod method = methodStr != null ? HttpMethod.valueOf(methodStr) : HttpMethod.GET;
                     Integer statusCode = rs.getObject("status_code", Integer.class);
-                    Timestamp startedAtTs = rs.getTimestamp("started_at");
-                    Instant startedAt = startedAtTs != null ? startedAtTs.toInstant() : null;
 
                     List<String> roles = deserializeList(rs.getString("roles_json"));
                     Map<String, String> headers = deserializeMap(rs.getString("headers_json"));
@@ -309,6 +310,15 @@ public class SqliteEventStore implements KraftPulseEventStore, AutoCloseable {
         }
 
         return Optional.empty();
+    }
+
+    private Instant parseInstant(ResultSet rs, String columnName) throws SQLException {
+        long epochMillis = rs.getLong(columnName);
+        if (!rs.wasNull() && epochMillis > 0) {
+            return Instant.ofEpochMilli(epochMillis);
+        }
+        Timestamp ts = rs.getTimestamp(columnName);
+        return ts != null ? ts.toInstant() : null;
     }
 
     private String serializeList(java.util.List<String> list) {
