@@ -3,6 +3,7 @@ package com.bowerzlabs.kraftpulse.sqlite.storage;
 import com.bowerzlabs.kraftpulse.shared.config.StorageSettings;
 import com.bowerzlabs.kraftpulse.shared.store.EventStoreProvider;
 import com.bowerzlabs.kraftpulse.shared.store.KraftPulseEventStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Discovers and creates SQLite-backed event stores for KraftPulse.
@@ -11,6 +12,8 @@ import com.bowerzlabs.kraftpulse.shared.store.KraftPulseEventStore;
  * to be discovered through Java's {@link java.util.ServiceLoader}.</p>
  */
 public final class SqliteEventStoreProvider implements EventStoreProvider {
+
+    private ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public boolean supports(StorageSettings settings) {
@@ -25,7 +28,7 @@ public final class SqliteEventStoreProvider implements EventStoreProvider {
             );
         }
 
-        return new SqliteEventStore(sqliteSettings);
+        return new SqliteEventStore(sqliteSettings, mapper);
     }
 
 }
