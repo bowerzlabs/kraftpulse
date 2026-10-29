@@ -1,6 +1,9 @@
 package com.bowerzlabs.kraftpulse.shared.store;
 
-import com.bowerzlabs.kraftpulse.shared.model.ApplicationInboundHttpRequestEvent;
+import com.bowerzlabs.kraftpulse.shared.model.*;
+import com.bowerzlabs.kraftpulse.shared.response.PagedTelemetryResponse;
+import com.bowerzlabs.kraftpulse.shared.response.requests.InboundHttpEventDetailResponse;
+import com.bowerzlabs.kraftpulse.shared.response.requests.InboundHttpEventSummaryResponse;
 
 import java.time.Instant;
 import java.util.List;
@@ -10,44 +13,18 @@ public interface KraftPulseEventStore extends AutoCloseable {
 
     void saveRequest(ApplicationInboundHttpRequestEvent event);
 
-    List<ApplicationInboundHttpRequestEvent> recentRequests(String applicationName, Instant since, int limit);
+    PagedTelemetryResponse<InboundHttpEventSummaryResponse> recentRequests(Instant since, int limit);
 
-    Optional<ApplicationInboundHttpRequestEvent> requestByEventId(String eventId);
+    Optional<InboundHttpEventDetailResponse> requestByEventId(String eventId);
 
-    @Override
-    void close();
-}
+    void saveException(ApplicationExceptionEvent event);
 
+    void saveLifecycle(ApplicationLifecycleEvent event);
 
+    void saveOutboundCall(ApplicationOutboundHttpRequestEvent event);
 
-//package com.bowerzlabs.kraftpulse.common.store;
-//
-//import com.bowerzlabs.kraftpulse.common.model.ExceptionEvent;
-//import com.bowerzlabs.kraftpulse.common.model.LifecycleEvent;
-//import com.bowerzlabs.kraftpulse.common.model.OutboundCallEvent;
-//import com.bowerzlabs.kraftpulse.common.model.QueryEvent;
-//import com.bowerzlabs.kraftpulse.common.model.RequestEvent;
-//import com.bowerzlabs.kraftpulse.common.model.ScheduledJobEvent;
-//
-//import java.time.Instant;
-//import java.util.List;
-//
-//public interface EventStore extends AutoCloseable {
-//
-//    void saveRequest(RequestEvent event);
-//
-//    void saveQuery(QueryEvent event);
-//
-//    void saveException(ExceptionEvent event);
-//
-//    void saveLifecycle(LifecycleEvent event);
-//
-//    void saveOutboundCall(OutboundCallEvent event);
-//
-//    void saveScheduledJob(ScheduledJobEvent event);
-//
-//    List<RequestEvent> recentRequests(Instant since, int limit);
-//
+    void saveScheduledJob(ApplicationJobScheduledJobEvent event);
+
 //    List<RequestEvent> requestsByTraceId(String traceId);
 //
 //    List<QueryEvent> queriesByTraceId(String traceId);
@@ -64,9 +41,9 @@ public interface KraftPulseEventStore extends AutoCloseable {
 //    );
 //
 //    List<ScheduledJobEvent> recentScheduledJobs(int limit);
-//
-//    void applyRetention(long maxAgeHours, long maxEvents);
-//
-//    @Override
-//    void close();
-//}
+
+    void applyRetention(long maxAgeHours, long maxEvents);
+
+    @Override
+    void close();
+}
