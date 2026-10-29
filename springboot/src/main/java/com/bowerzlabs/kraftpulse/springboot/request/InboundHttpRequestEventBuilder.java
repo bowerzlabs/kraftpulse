@@ -30,88 +30,98 @@ public class InboundHttpRequestEventBuilder {
             long durationNanos,
             Throwable unhandledException
     ) {
-        String eventId = UUID.randomUUID().toString();
-
-        // Resolve trace and span IDs from OpenTelemetry context via TraceProvider
-        String traceId = eventId;
-        String spanId = eventId; // Fallback to unique ID if no active span exists
-
-        if (traceProvider != null) {
-            TraceContext ctx = traceProvider.currentContext();
-            if (ctx != null) {
-                if (ctx.traceId() != null && !ctx.traceId().isBlank()) {
-                    traceId = ctx.traceId();
-                }
-                if (ctx.spanId() != null && !ctx.spanId().isBlank()) {
-                    spanId = ctx.spanId();
-                }
-            }
+        String requestId = (String) request.getAttribute(HttpRequestCaptureFilter.INBOUND_REQUEST_ID);
+        if (requestId == null || requestId.isBlank()) {
+            requestId = UUID.randomUUID().toString();
+            request.setAttribute(HttpRequestCaptureFilter.INBOUND_REQUEST_ID, requestId);
         }
 
-        EventMetadata metadata = new EventMetadata(
-                eventId,
-                Instant.now(),
-                applicationName,
-                traceId,
-                spanId
-        );
+        TraceIds ids = resolveTraceIds(request);
+        EventMetadata metadata = new EventMetadata(requestId, Instant.now(), applicationName, ids.traceId(), ids.spanId());
 
-        // 1. Extract URI template matched by Spring MVC
         String matchingPattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
-        if (matchingPattern == null) {
-            matchingPattern = request.getRequestURI();
-        }
+        if (matchingPattern == null) matchingPattern = request.getRequestURI();
 
-        // 2. Safely resolve Controller Class and Handler Method names
         String controllerClass = null;
         String handlerMethodName = null;
         Object handler = request.getAttribute(HandlerMapping.BEST_MATCHING_HANDLER_ATTRIBUTE);
-
-        if (handler instanceof HandlerMethod handlerMethod) {
-            controllerClass = handlerMethod.getBeanType().getSimpleName();
-            handlerMethodName = handlerMethod.getMethod().getName();
+        if (handler instanceof HandlerMethod hm) {
+            controllerClass = hm.getBeanType().getSimpleName();
+            handlerMethodName = hm.getMethod().getName();
         } else if (handler != null) {
             controllerClass = handler.getClass().getSimpleName();
         }
 
-        // 3. Sanitized Headers & Parameters
-        Map<String, String> headers = extractAndMaskHeaders(request);
-        Map<String, String> queryParams = extractQueryParams(request);
+        int statusCode = response.getStatus();
+        if (unhandledException != null && statusCode < 400) {
+            statusCode = 500;
+        }
 
         return ApplicationInboundHttpRequestEvent.create(
                 metadata,
-                HttpMethod.valueOf(request.getMethod().toUpperCase()),
+                HttpMethod.valueOf(request.getMethod().toUpperCase(Locale.ROOT)),
                 request.getRequestURI(),
                 matchingPattern,
-                response.getStatus(),
+                statusCode,
                 durationNanos,
                 startedAt,
                 controllerClass,
                 handlerMethodName,
-                null,
+                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : null,
                 List.of(),
                 getClientIp(request),
                 request.getHeader("User-Agent"),
                 request.getContentLengthLong(),
-                response.getBufferSize(),
-                headers,
-                queryParams,
+                -1L,
+                extractAndMaskHeaders(request),
+                extractQueryParams(request),
                 0,
                 0L,
-                unhandledException != null || response.getStatus() >= 500,
+                unhandledException != null || statusCode >= 500,
                 false
         );
     }
 
+    private TraceIds resolveTraceIds(HttpServletRequest request) {
+        String traceId = (String) request.getAttribute(HttpRequestCaptureFilter.TRACE_ID_ATTRIBUTE);
+        String spanId = (String) request.getAttribute(HttpRequestCaptureFilter.SPAN_ID_ATTRIBUTE);
+
+        if (isValid(traceId, 32, "0{32}") && isValid(spanId, 16, "0{16}")) {
+            return new TraceIds(traceId, spanId);
+        }
+
+        if (traceProvider != null) {
+            try {
+                TraceContext ctx = traceProvider.currentContext();
+                if (ctx != null) {
+                    if (!isValid(traceId, 32, "0{32}") && isValid(ctx.traceId(), 32, "0{32}")) traceId = ctx.traceId();
+                    if (!isValid(spanId, 16, "0{16}") && isValid(ctx.spanId(), 16, "0{16}")) spanId = ctx.spanId();
+                }
+            } catch (RuntimeException ignored) {}
+        }
+
+        if (!isValid(traceId, 32, "0{32}")) traceId = UUID.randomUUID().toString().replace("-", "");
+        if (!isValid(spanId, 16, "0{16}")) spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+
+        request.setAttribute(HttpRequestCaptureFilter.TRACE_ID_ATTRIBUTE, traceId);
+        request.setAttribute(HttpRequestCaptureFilter.SPAN_ID_ATTRIBUTE, spanId);
+
+        return new TraceIds(traceId, spanId);
+    }
+
+    private boolean isValid(String val, int len, String zeros) {
+        return val != null && val.matches("[0-9a-fA-F]{" + len + "}") && !val.matches(zeros);
+    }
+
     private Map<String, String> extractAndMaskHeaders(HttpServletRequest request) {
         Map<String, String> map = new HashMap<>();
-        Enumeration<String> headerNames = request.getHeaderNames();
-        if (headerNames != null) {
-            while (headerNames.hasMoreElements()) {
-                String name = headerNames.nextElement();
-                String lower = name.toLowerCase();
-                if (lower.contains("authorization") || lower.contains("cookie") || lower.contains("api-key")) {
-                    map.put(name, "******");
+        Enumeration<String> names = request.getHeaderNames();
+        if (names != null) {
+            while (names.hasMoreElements()) {
+                String name = names.nextElement();
+                String lower = name.toLowerCase(Locale.ROOT);
+                if (lower.contains("authorization") || lower.contains("cookie") || lower.contains("api-key") || lower.contains("set-cookie")) {
+                    map.put(name, "[MASKED]");
                 } else {
                     map.put(name, request.getHeader(name));
                 }
@@ -122,15 +132,14 @@ public class InboundHttpRequestEventBuilder {
 
     private Map<String, String> extractQueryParams(HttpServletRequest request) {
         Map<String, String> map = new HashMap<>();
-        request.getParameterMap().forEach((k, v) -> map.put(k, String.join(",", v)));
+        request.getParameterMap().forEach((k, v) -> map.put(k, v == null ? "" : String.join(",", v)));
         return map;
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        String fwd = request.getHeader("X-Forwarded-For");
+        return (fwd != null && !fwd.isBlank()) ? fwd.split(",")[0].trim() : request.getRemoteAddr();
     }
+
+    private record TraceIds(String traceId, String spanId) {}
 }
