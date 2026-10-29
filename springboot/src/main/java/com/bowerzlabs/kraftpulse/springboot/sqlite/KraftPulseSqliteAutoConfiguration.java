@@ -1,10 +1,10 @@
 package com.bowerzlabs.kraftpulse.springboot.sqlite;
 
-import com.bowerzlabs.kraftpulse.core.capture.KraftPulseCaptureService;
 import com.bowerzlabs.kraftpulse.shared.store.KraftPulseEventStore;
-import com.bowerzlabs.kraftpulse.sqlite.storage.SqliteEventStore;
 import com.bowerzlabs.kraftpulse.springboot.config.KraftPulseProperties;
 import com.bowerzlabs.kraftpulse.sqlite.migration.KraftPulseSqliteMigrator;
+import com.bowerzlabs.kraftpulse.sqlite.storage.SqliteEventStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
@@ -20,6 +20,7 @@ import javax.sql.DataSource;
 public class KraftPulseSqliteAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(KraftPulseSqliteAutoConfiguration.class);
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Bean(name = "kraftPulseSqliteDataSource", defaultCandidate = false)
     public DataSource kraftPulseSqliteDataSource(KraftPulseProperties properties) {
@@ -47,7 +48,7 @@ public class KraftPulseSqliteAutoConfiguration {
                 new com.bowerzlabs.kraftpulse.shared.config.StorageSettings.Sqlite(
                         properties.getStorageProperties().getFilePath()
                 );
-        return new SqliteEventStore(sqliteSettings);
+        return new SqliteEventStore(sqliteSettings, objectMapper);
     }
 
     public static class KraftPulseSqliteSchemaInitializer implements InitializingBean {
