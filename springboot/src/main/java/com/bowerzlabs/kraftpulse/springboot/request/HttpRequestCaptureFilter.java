@@ -1,4 +1,3 @@
-
 package com.bowerzlabs.kraftpulse.springboot.request;
 
 import com.bowerzlabs.kraftpulse.core.capture.KraftPulseCaptureService;
@@ -19,8 +18,7 @@ import java.util.UUID;
 
 public class HttpRequestCaptureFilter extends HttpFilter {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(HttpRequestCaptureFilter.class);
+    private static final Logger log = LoggerFactory.getLogger(HttpRequestCaptureFilter.class);
 
     public static final String TRACE_ID_ATTRIBUTE = "kraftpulse.traceId";
     public static final String SPAN_ID_ATTRIBUTE = "kraftpulse.spanId";
@@ -30,7 +28,6 @@ public class HttpRequestCaptureFilter extends HttpFilter {
     private final InboundHttpRequestEventBuilder eventBuilder;
     private final TraceProvider traceProvider;
     private final String cleanDashboardPath;
-    private final String applicationName;
 
     public HttpRequestCaptureFilter(
             KraftPulseCaptureService captureService,
@@ -42,16 +39,10 @@ public class HttpRequestCaptureFilter extends HttpFilter {
         this.captureService = captureService;
         this.eventBuilder = eventBuilder;
         this.traceProvider = traceProvider;
-        this.applicationName = applicationName != null
-                ? applicationName
-                : "kraftpulse-app";
 
         String path = dashboardPath != null ? dashboardPath : "/kraft/pulse";
-        if (path.endsWith("/**")) {
-            path = path.substring(0, path.length() - 3);
-        } else if (path.endsWith("/*")) {
-            path = path.substring(0, path.length() - 2);
-        }
+        if (path.endsWith("/**")) path = path.substring(0, path.length() - 3);
+        else if (path.endsWith("/*")) path = path.substring(0, path.length() - 2);
         this.cleanDashboardPath = path;
     }
 
@@ -61,8 +52,9 @@ public class HttpRequestCaptureFilter extends HttpFilter {
             HttpServletResponse response,
             FilterChain chain
     ) throws IOException, ServletException {
+        String uri = request.getRequestURI();
 
-        if (isKraftPulseEndpoint(request.getRequestURI())) {
+        if (shouldSkip(uri)) {
             chain.doFilter(request, response);
             return;
         }
@@ -87,63 +79,48 @@ public class HttpRequestCaptureFilter extends HttpFilter {
             if (captureService != null) {
                 try {
                     long durationNanos = System.nanoTime() - startNanos;
-
                     ApplicationInboundHttpRequestEvent event = eventBuilder.build(
-                            request,
-                            response,
-                            startedAt,
-                            durationNanos,
-                            unhandledException
+                            request, response, startedAt, durationNanos, unhandledException
                     );
                     captureService.captureInboundRequest(event);
                 } catch (RuntimeException ex) {
-                    log.warn(
-                            "Failed to capture inbound request telemetry for requestId={}",
-                            requestId,
-                            ex
-                    );
+                    log.warn("Failed to capture inbound request telemetry for requestId={}", requestId, ex);
                 }
             }
         }
     }
 
+    private boolean shouldSkip(String uri) {
+        if (uri == null) return true;
+        if (uri.startsWith(cleanDashboardPath) || uri.contains("/kraft/pulse/api") || uri.contains("/kraftpulse/api")) {
+            return true;
+        }
+        if (uri.equals("/favicon.ico") || uri.equals("/error")) {
+            return true;
+        }
+        String lower = uri.toLowerCase();
+        return lower.endsWith(".css") || lower.endsWith(".js") || lower.endsWith(".png") ||
+                lower.endsWith(".jpg") || lower.endsWith(".ico") || lower.endsWith(".svg") ||
+                lower.endsWith(".woff") || lower.endsWith(".woff2") || lower.endsWith(".map");
+    }
+
     private TraceIds resolveTraceIds() {
         if (traceProvider != null) {
             try {
-                TraceContext context = traceProvider.currentContext();
-
-                if (context != null
-                        && isValidTraceId(context.traceId())
-                        && isValidSpanId(context.spanId())) {
-                    return new TraceIds(context.traceId(), context.spanId());
+                TraceContext ctx = traceProvider.currentContext();
+                if (ctx != null && isValid(ctx.traceId(), 32, "0{32}") && isValid(ctx.spanId(), 16, "0{16}")) {
+                    return new TraceIds(ctx.traceId(), ctx.spanId());
                 }
-            } catch (RuntimeException ex) {
-                log.debug("Unable to resolve active trace context; generating fallback IDs", ex);
-            }
+            } catch (RuntimeException ignored) {}
         }
-
         return new TraceIds(
                 UUID.randomUUID().toString().replace("-", ""),
                 UUID.randomUUID().toString().replace("-", "").substring(0, 16)
         );
     }
 
-    private boolean isValidTraceId(String value) {
-        return value != null
-                && value.matches("[0-9a-fA-F]{32}")
-                && !value.matches("0{32}");
-    }
-
-    private boolean isValidSpanId(String value) {
-        return value != null
-                && value.matches("[0-9a-fA-F]{16}")
-                && !value.matches("0{16}");
-    }
-
-    private boolean isKraftPulseEndpoint(String uri) {
-        return uri.startsWith(cleanDashboardPath)
-                || uri.contains("/kraft/pulse/api")
-                || uri.contains("/kraftpulse/api");
+    private boolean isValid(String val, int len, String zeros) {
+        return val != null && val.matches("[0-9a-fA-F]{" + len + "}") && !val.matches(zeros);
     }
 
     private record TraceIds(String traceId, String spanId) {}
