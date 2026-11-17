@@ -21,7 +21,6 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:1.6.0")
     implementation("org.jetbrains.exposed:exposed-java-time:1.6.0")
 
-// Additional Exposed modules
     implementation("org.jetbrains.exposed:exposed-crypt:1.6.0")
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime:1.6.0")
     implementation("org.jetbrains.exposed:exposed-money:1.6.0")
@@ -37,7 +36,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(17)
 }
 
 java {
