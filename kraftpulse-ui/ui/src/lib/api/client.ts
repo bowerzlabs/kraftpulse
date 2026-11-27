@@ -4,7 +4,8 @@ export async function apiFetch<T>(
     path: string,
     options?: RequestInit
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const response = await fetch(`${API_BASE}${normalizedPath}`, {
     ...options,
     headers: {
       'Accept': 'application/json',

@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+@source "../../src/main/kte/**/*.kte";
+@source "../../src/main/java/**/*.java";
+@source "../../src/main/kotlin/**/*.kt";

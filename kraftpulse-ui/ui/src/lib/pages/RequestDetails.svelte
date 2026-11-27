@@ -1,18 +1,51 @@
 <script lang="ts">
     import { onMount } from 'svelte'
+    import { location } from 'svelte-spa-router'
     import {
+        getQueryDetails,
         getRequestDetails,
+        type QueryEventDetail,
+        type QueryEventSummary,
         type RequestDetailsResponse,
         type WaterfallNode,
         type SpanType
     } from '../api/kraftpulse'
-    import { location } from 'svelte-spa-router'
 
     let request: RequestDetailsResponse | null = null
     let loading = true
     let error: string | null = null
 
-    $: traceId =$location.split('/').pop() ?? ''
+    let selectedQueryId: string | null = null
+    let selectedQueryDetail: QueryEventDetail | null = null
+    let queryDetailLoading = false
+    let queryDetailError: string | null = null
+
+    $: traceId = $location.split('/').pop() ?? ''
+
+    $: queryItems = (
+        request?.queries && request.queries.length > 0
+            ? request.queries
+            : (request?.database?.queries ?? []).map((q) => ({
+                  id: q.spanId ?? `${q.repositoryMethod ?? 'query'}-${q.durationMs}`,
+                  traceId: request?.traceId ?? '',
+                  applicationName: '',
+                  databaseType: 'SQL',
+                  operationType: 'QUERY',
+                  repositoryClass: q.repositoryClass,
+                  repositoryMethod: q.repositoryMethod,
+                  normalizedQuery: q.normalizedQuery ?? q.query,
+                  durationMs: q.durationMs,
+                  isSlow: q.slow,
+                  isNPlusOneSuspect: false,
+                  isError: false,
+                  startedAt: request?.startedAt ?? ''
+              }))
+    ) as QueryEventSummary[]
+
+    $: slowQueryCount =
+        request?.queries && request.queries.length > 0
+            ? request.queries.filter((q) => q.isSlow).length
+            : (request?.database?.slowQueryCount ?? 0)
 
     onMount(async () => {
         try {
@@ -23,6 +56,27 @@
             loading = false
         }
     })
+
+    async function inspectQuery(query: QueryEventSummary) {
+        selectedQueryId = query.id
+        selectedQueryDetail = null
+        queryDetailError = null
+        queryDetailLoading = true
+
+        try {
+            selectedQueryDetail = await getQueryDetails(query.id)
+        } catch (e) {
+            queryDetailError = e instanceof Error ? e.message : 'Failed to load query details'
+        } finally {
+            queryDetailLoading = false
+        }
+    }
+
+    function closeQueryInspector() {
+        selectedQueryId = null
+        selectedQueryDetail = null
+        queryDetailError = null
+    }
 
     function formatDuration(ms: number | null | undefined): string {
         if (ms == null) return '-'
@@ -289,39 +343,61 @@
                 <div>
                     <h2 class="font-semibold text-white text-sm sm:text-base">Database Telemetry</h2>
                     <p class="text-xs text-gray-500 mt-0.5">
-                        {request.database.queryCount} total queries · {formatDuration(request.database.totalDurationMs)} execution time
+                        {Math.max(request.database.queryCount, queryItems.length)} total queries · {formatDuration(request.database.totalDurationMs)} execution time
                     </p>
                 </div>
-                {#if request.database.slowQueryCount > 0}
+                {#if slowQueryCount > 0}
                     <span class="self-start sm:self-auto px-2.5 py-1 text-xs font-mono text-yellow-400 bg-yellow-950/60 border border-yellow-800/60 rounded-md">
-                        {request.database.slowQueryCount} Slow Query
+                        {slowQueryCount} Slow Query
                     </span>
                 {/if}
             </div>
 
-            {#if request.database.queries.length === 0}
+            {#if queryItems.length === 0}
                 <div class="p-8 text-center text-xs font-mono text-gray-500">No database queries executed during this request.</div>
             {:else}
                 <div class="divide-y divide-gray-800/40">
-                    {#each request.database.queries as query}
-                        <div class="p-4 sm:p-5 space-y-3">
+                    {#each queryItems as query}
+                        <button
+                            type="button"
+                            on:click={() => inspectQuery(query)}
+                            class="w-full text-left p-4 sm:p-5 space-y-3 hover:bg-[#131A2A] transition cursor-pointer {selectedQueryId === query.id ? 'bg-[#131A2A]' : ''}"
+                        >
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div class="flex items-center gap-2">
-                                    {#if query.slow}
+                                <div class="flex flex-wrap items-center gap-2 min-w-0">
+                                    <span class="px-2 py-0.5 text-[10px] font-mono bg-gray-800 text-gray-300 rounded shrink-0">
+                                        {query.operationType}
+                                    </span>
+                                    {#if query.isSlow}
                                         <span class="px-2 py-0.5 text-[10px] font-mono text-yellow-400 bg-yellow-950/60 border border-yellow-800/60 rounded shrink-0">
                                             SLOW
                                         </span>
                                     {/if}
+                                    {#if query.isNPlusOneSuspect}
+                                        <span class="px-2 py-0.5 text-[10px] font-mono text-orange-400 bg-orange-950/60 border border-orange-800/60 rounded shrink-0">
+                                            N+1
+                                        </span>
+                                    {/if}
+                                    {#if query.isError}
+                                        <span class="px-2 py-0.5 text-[10px] font-mono text-red-400 bg-red-950/60 border border-red-800/60 rounded shrink-0">
+                                            ERROR
+                                        </span>
+                                    {/if}
                                     <span class="font-mono text-xs text-emerald-400 font-semibold truncate">
-                                        {query.repositoryMethod ?? 'Query'}
+                                        {query.repositoryClass
+                                            ? `${query.repositoryClass.split('.').pop()}#${query.repositoryMethod ?? '?'}`
+                                            : (query.repositoryMethod ?? 'Query')}
                                     </span>
                                 </div>
-                                <span class="font-mono text-xs text-gray-400 font-semibold self-end sm:self-auto">
-                                    {formatDuration(query.durationMs)}
-                                </span>
+                                <div class="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                                    <span class="font-mono text-xs text-gray-400 font-semibold">
+                                        {formatDuration(query.durationMs)}
+                                    </span>
+                                    <span class="font-mono text-[11px] text-cyan-400">Inspect →</span>
+                                </div>
                             </div>
-                            <pre class="overflow-x-auto rounded-lg bg-[#0B0F17] p-3 sm:p-4 font-mono text-[11px] sm:text-xs text-gray-300 border border-gray-800/60">{query.query}</pre>
-                        </div>
+                            <pre class="overflow-x-auto rounded-lg bg-[#0B0F17] p-3 sm:p-4 font-mono text-[11px] sm:text-xs text-gray-300 border border-gray-800/60">{query.normalizedQuery}</pre>
+                        </button>
                     {/each}
                 </div>
             {/if}
@@ -339,10 +415,13 @@
             {:else}
                 <div class="divide-y divide-gray-800/40">
                     {#each request.outboundCalls as call}
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 font-mono text-xs gap-2 sm:gap-4">
+                        <a
+                            href={`#/outbound/${encodeURIComponent(call.id)}`}
+                            class="flex flex-col sm:flex-row sm:items-center justify-between p-4 font-mono text-xs gap-2 sm:gap-4 hover:bg-[#131A2A] transition cursor-pointer group"
+                        >
                             <div class="flex items-center gap-2.5 min-w-0">
                                 <span class="px-2 py-0.5 bg-gray-800 text-gray-300 rounded text-[10px] shrink-0">{call.method}</span>
-                                <span class="text-gray-200 truncate">{call.url}</span>
+                                <span class="text-gray-200 group-hover:text-white truncate">{call.url}</span>
                             </div>
                             <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-0 border-gray-800/40">
                                 {#if call.statusCode}
@@ -351,42 +430,136 @@
                                     </span>
                                 {/if}
                                 <span class="text-gray-400 font-semibold">{formatDuration(call.durationMs)}</span>
+                                <span class="text-[11px] text-cyan-400 group-hover:translate-x-0.5 transition-transform">Details →</span>
                             </div>
-                        </div>
+                        </a>
                     {/each}
                 </div>
             {/if}
         </section>
 
-        <!-- Captured Exception Block -->
-        {#if request.error}
+        <!-- Captured Exceptions Section -->
+        {#if request.exceptions && request.exceptions.length > 0}
             <section class="rounded-xl border border-red-900/60 bg-red-950/20 shadow-lg overflow-hidden">
                 <div class="border-b border-red-900/40 p-4 sm:p-5 flex items-center justify-between">
-                    <h2 class="font-semibold text-red-400 text-sm sm:text-base">Unhandled Exception</h2>
-                    <span class="px-2.5 py-0.5 text-xs font-mono text-red-400 bg-red-950/80 border border-red-800/60 rounded-full">
-                        {request.error.occurrenceCount} Occurrences
-                    </span>
+                    <h2 class="font-semibold text-red-400 text-sm sm:text-base">Request Exceptions ({request.exceptions.length})</h2>
                 </div>
-                <div class="p-4 sm:p-6 space-y-4 font-mono text-xs">
-                    <div>
-                        <span class="text-gray-500 block text-[10px] uppercase">Exception Type</span>
-                        <span class="text-red-400 font-semibold text-xs sm:text-sm break-all">{request.error.type ?? 'Unknown Exception'}</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-500 block text-[10px] uppercase">Message</span>
-                        <span class="text-gray-200 text-xs sm:text-sm break-words">{request.error.message ?? 'No detail message.'}</span>
-                    </div>
-                    {#if request.error.stacktrace}
-                        <details class="group">
-                            <summary class="cursor-pointer text-gray-400 hover:text-white transition-colors text-xs font-sans">
-                                Toggle Full Stacktrace
-                            </summary>
-                            <pre class="mt-3 max-h-96 overflow-auto rounded-lg bg-[#0B0F17] p-3 sm:p-4 text-[10px] sm:text-[11px] text-gray-400 border border-gray-800/60 leading-relaxed">{request.error.stacktrace}</pre>
-                        </details>
-                    {/if}
+                <div class="divide-y divide-red-900/30">
+                    {#each request.exceptions as ex}
+                        <div class="p-4 sm:p-6 space-y-3 font-mono text-xs">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <span class="text-red-400 font-semibold text-xs sm:text-sm break-all">
+                                    {ex.exceptionType}
+                                </span>
+                                <span class="px-2.5 py-0.5 text-[11px] font-mono text-red-300 bg-red-950/80 border border-red-800/60 rounded-full self-start sm:self-auto">
+                                    {ex.occurrenceCount} Occurrence{ex.occurrenceCount > 1 ? 's' : ''}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 block text-[10px] uppercase">Message</span>
+                                <span class="text-gray-200 text-xs sm:text-sm break-words">{ex.message ?? 'No detail message.'}</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-[11px] text-gray-400">
+                                <div>
+                                    <span class="text-gray-500 uppercase text-[9px] block">Origin</span>
+                                    <span class="text-gray-300">{ex.originClass}#{ex.originMethod}:{ex.lineNumber}</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500 uppercase text-[9px] block">Last Seen</span>
+                                    <span class="text-gray-300">{formatDate(ex.lastSeen)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    {/each}
                 </div>
             </section>
         {/if}
 
+    </div>
+{/if}
+
+<!-- Query Detail Modal -->
+{#if selectedQueryId}
+    <div
+        class="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
+        on:click={closeQueryInspector}
+    >
+        <div
+            class="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-xl border border-gray-800 bg-[#0E131F] shadow-2xl p-5 sm:p-6 space-y-4"
+            on:click|stopPropagation
+        >
+            <div class="flex items-center justify-between border-b border-gray-800/60 pb-3">
+                <div>
+                    <h3 class="font-semibold text-white text-sm sm:text-base font-mono">Query Execution Details</h3>
+                    <p class="text-[11px] font-mono text-gray-500">{selectedQueryId}</p>
+                </div>
+                <button
+                    type="button"
+                    on:click={closeQueryInspector}
+                    class="px-2.5 py-1 text-xs font-mono text-gray-400 hover:text-white rounded border border-gray-800 bg-gray-900 cursor-pointer"
+                >
+                    Close
+                </button>
+            </div>
+
+            {#if queryDetailLoading}
+                <div class="py-10 text-center text-xs font-mono text-gray-400">Loading query details...</div>
+            {:else if queryDetailError}
+                <div class="rounded-lg border border-red-900/60 bg-red-950/30 p-4 text-xs font-mono text-red-300">
+                    {queryDetailError}
+                </div>
+            {:else if selectedQueryDetail}
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                    <div class="rounded-lg bg-[#0B0F17] p-3 border border-gray-800/60">
+                        <span class="text-[10px] text-gray-500 uppercase block">Duration</span>
+                        <span class="text-emerald-400 font-semibold">{formatDuration(selectedQueryDetail.durationMs)}</span>
+                    </div>
+                    <div class="rounded-lg bg-[#0B0F17] p-3 border border-gray-800/60">
+                        <span class="text-[10px] text-gray-500 uppercase block">Rows / Affected</span>
+                        <span class="text-gray-200">{selectedQueryDetail.rowsReturned} / {selectedQueryDetail.affectedRows}</span>
+                    </div>
+                    <div class="rounded-lg bg-[#0B0F17] p-3 border border-gray-800/60">
+                        <span class="text-[10px] text-gray-500 uppercase block">Database</span>
+                        <span class="text-gray-200 truncate block">{selectedQueryDetail.databaseName ?? '-'}</span>
+                    </div>
+                    <div class="rounded-lg bg-[#0B0F17] p-3 border border-gray-800/60">
+                        <span class="text-[10px] text-gray-500 uppercase block">Target</span>
+                        <span class="text-gray-200 truncate block">{selectedQueryDetail.host}:{selectedQueryDetail.port}</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
+                    <div class="rounded-lg bg-[#0B0F17] p-3 border border-gray-800/60">
+                        <span class="text-[10px] text-gray-500 uppercase block">Repository</span>
+                        <span class="text-purple-400 break-all">{selectedQueryDetail.repositoryClass ?? '-'}</span>
+                        <span class="text-gray-400 block mt-0.5">Method: {selectedQueryDetail.repositoryMethod ?? '-'}</span>
+                    </div>
+                    <div class="rounded-lg bg-[#0B0F17] p-3 border border-gray-800/60">
+                        <span class="text-[10px] text-gray-500 uppercase block">Transaction / Trace</span>
+                        <span class="text-gray-200 break-all block">{selectedQueryDetail.transactionId ?? '-'}</span>
+                        <span class="text-gray-500 block mt-0.5 truncate">Span: {selectedQueryDetail.spanId ?? '-'}</span>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <span class="text-[10px] font-mono uppercase text-gray-500 block">Raw SQL</span>
+                    <pre class="overflow-x-auto rounded-lg bg-[#0B0F17] p-3.5 font-mono text-xs text-gray-200 border border-gray-800/60">{selectedQueryDetail.rawQuery}</pre>
+                </div>
+
+                {#if selectedQueryDetail.normalizedQuery && selectedQueryDetail.normalizedQuery !== selectedQueryDetail.rawQuery}
+                    <div class="space-y-1.5">
+                        <span class="text-[10px] font-mono uppercase text-gray-500 block">Normalized SQL</span>
+                        <pre class="overflow-x-auto rounded-lg bg-[#0B0F17] p-3.5 font-mono text-xs text-gray-400 border border-gray-800/60">{selectedQueryDetail.normalizedQuery}</pre>
+                    </div>
+                {/if}
+
+                {#if selectedQueryDetail.errorMessage}
+                    <div class="rounded-lg border border-red-900/60 bg-red-950/30 p-3.5 font-mono text-xs text-red-300 space-y-1">
+                        <div class="font-semibold text-red-400">{selectedQueryDetail.errorType ?? 'Query Error'}</div>
+                        <div>{selectedQueryDetail.errorMessage}</div>
+                    </div>
+                {/if}
+            {/if}
+        </div>
     </div>
 {/if}

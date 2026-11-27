@@ -6,20 +6,22 @@ export interface EndpointStat {
 }
 
 export interface RequestSummary {
+    eventId: string
     traceId: string
+    spanId: string
+    timestamp: string
     method: string
     path: string
-    statusCode: number
+    matchingPattern: string
+    statusCode: number | null
     durationMs: number
-    timestamp: string
-}
-
-export interface ExceptionSummary {
-    traceId: string
-    exceptionType: string
-    message: string
-    originClass: string
-    timestamp: string
+    controllerClass: string | null
+    handlerMethod: string | null
+    authenticatedUser: string | null
+    queryCount: number
+    queryDurationMs: number
+    hasException: boolean
+    hasNPlusOne: boolean
 }
 
 export interface OverviewResponse {
@@ -27,14 +29,85 @@ export interface OverviewResponse {
     totalRequestsLast24h: number
     errorRatePercent: number
     averageResponseTimeMs: number
-    slowestEndpoints: EndpointStat[]
     recentExceptionCount: number
     recentRequests: RequestSummary[]
     recentExceptions: ExceptionSummary[]
 }
 
+export interface ExceptionSummary {
+    id: string
+    traceId: string
+    exceptionType: string
+    simpleName: string
+    message: string
+    originClass: string
+    originMethod: string
+    lineNumber: number
+    httpMethod: string
+    requestUri: string
+    occurrenceCount: number
+    lastSeen: string
+}
+
 export function getOverview(): Promise<OverviewResponse> {
+    console.log("getting overview")
     return apiFetch<OverviewResponse>('/overview')
+}
+
+
+// ─────────────────────────────────────────────
+// Query telemetry (summary + full detail)
+// ─────────────────────────────────────────────
+
+export interface QueryEventSummary {
+    id: string
+    traceId: string
+    applicationName: string
+    databaseType: string
+    operationType: string
+    repositoryClass: string | null
+    repositoryMethod: string | null
+    normalizedQuery: string
+    durationMs: number
+    isSlow: boolean
+    isNPlusOneSuspect: boolean
+    isError: boolean
+    startedAt: string
+}
+
+export interface QueryEventDetail {
+    id: string
+    traceId: string
+    spanId: string | null
+    parentSpanId: string | null
+    applicationName: string
+    databaseType: string
+    databaseName: string | null
+    host: string | null
+    port: number
+    dbUser: string | null
+    rawQuery: string
+    normalizedQuery: string
+    operationType: string
+    repositoryClass: string | null
+    repositoryMethod: string | null
+    durationMs: number
+    durationNanos: number
+    rowsReturned: number
+    affectedRows: number
+    transactionId: string | null
+    isSlow: boolean
+    isNPlusOneSuspect: boolean
+    isError: boolean
+    errorType: string | null
+    errorMessage: string | null
+    startedAt: string
+}
+
+export function getQueryDetails(queryId: string): Promise<QueryEventDetail> {
+    return apiFetch<QueryEventDetail>(
+        `/queries/${encodeURIComponent(queryId)}`
+    )
 }
 
 
@@ -74,7 +147,9 @@ export interface RequestDetailsResponse {
     waterfall: WaterfallNode[]
 
     database: DatabaseSummary
-    outboundCalls: OutboundCallResponse[]
+    queries: QueryEventSummary[]
+    outboundCalls: OutboundCallDetail[]
+    exceptions?: ExceptionSummary[]
 
     error: RequestErrorResponse | null
 
@@ -132,14 +207,46 @@ export interface DatabaseQueryResponse {
     transactionId: string | null
 }
 
-export interface OutboundCallResponse {
-    spanId: string | null
-    method: string
+// =============================================================================
+// Paste into src/lib/api/kraftpulse.ts
+//   1. Delete the old `OutboundCallResponse` interface.
+//   2. In `RequestDetailsResponse`, change
+//          outboundCalls: OutboundCallResponse[]
+//      to
+//          outboundCalls: OutboundCallDetail[]
+//   3. Add this interface.
+// =============================================================================
+
+/** Mirrors OutboundHttpEventDetailResponse. */
+export interface OutboundCallDetail {
+    id: string
+    requestId: string | null
+    traceId: string
+    spanId: string
+    parentSpanId: string | null
+    applicationName: string
+    targetService: string | null
+    httpMethod: string
     url: string
-    statusCode: number | null
+    uriTemplate: string | null
+    host: string
+    port: number
+    /** -1 when the call failed before a response arrived. */
+    statusCode: number
+    statusText: string | null
+    error: boolean
     durationMs: number
-    startOffsetMs: number | null
+    /** -1 when unavailable (always, for interceptor-based capture). */
+    connectionTimeMs: number
+    requestHeaders: Record<string, string>
+    responseHeaders: Record<string, string>
+    /** -1 when unknown. */
+    requestBodySize: number
+    responseBodySize: number
+    clientType: string | null
+    errorType: string | null
     errorMessage: string | null
+    timestamp: string
 }
 
 export interface RequestErrorResponse {
@@ -169,5 +276,32 @@ export function getRequestDetails(
 ): Promise<RequestDetailsResponse> {
     return apiFetch<RequestDetailsResponse>(
         `/requests/${encodeURIComponent(traceId)}`
+    )
+}
+
+export interface ApplicationDetails {
+    appName: string
+    appVersion: string
+    jvmVersion: string
+    jvmVendor: string
+    springBootVersion: string
+    osName: string
+    osArch: string
+    activeProfiles: string[]
+    kraftPulseVersion: string
+    maxMemoryMb: number
+    totalMemoryMb: number
+    freeMemoryMb: number
+}
+
+export function getAppDetails(): Promise<ApplicationDetails> {
+    return apiFetch<ApplicationDetails>('/app/details')
+}
+
+export function getOutboundDetails(
+    outboundId: string
+): Promise<OutboundCallDetail> {
+    return apiFetch<OutboundCallDetail>(
+        `/outbound/${encodeURIComponent(outboundId)}`
     )
 }
