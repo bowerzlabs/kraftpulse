@@ -32,6 +32,4 @@ public final class KraftPulseEntry {
         return new KraftPulseCaptureService(store, pipeline);
     }
 
-
-
 }
